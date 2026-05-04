@@ -18,10 +18,14 @@ Mini-Rag/
 │   ├── routers/
 │   │   ├── __init__.py
 │   │   ├── base.py          # Base/welcome endpoints (v1)
-│   │   └── data.py          # Data/file upload endpoints (v1)
+│   │   └── data.py          # Data/file upload and process endpoints (v1)
 │   ├── schemas/
 │   │   ├── __init__.py
-│   │   └── file_data.py     # File validation and management logic
+│   │   └── proccess.py      # Request/response schemas
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── file_service.py  # File management and validation service
+│   │   └── proccess_service.py # Document processing and chunking service
 │   ├── utils/
 │   │   └── file_utils.py    # Utility functions
 │   └── assets/
@@ -39,6 +43,12 @@ Mini-Rag/
   - Stores files in project-specific directories
   - Async file writing support
 
+- **File Processing Endpoint**: POST `/api/v1/data/process/{project_id}`
+  - Loads and parses PDF and TXT files
+  - Chunks files with configurable chunk size and overlap
+  - Returns file chunks with metadata
+  - Supports custom chunk parameters via request body
+
 - **Base Welcome Endpoint**: GET `/api/v1/`
   - Returns app name and version
 
@@ -54,10 +64,18 @@ Mini-Rag/
   - Project path management
   - Filename sanitization
 
+- **Document Processing Service**:
+  - Multi-format file loader support (PDF, TXT)
+  - Recursive character-based text splitting
+  - Configurable chunk size and overlap
+  - Metadata preservation during processing
+
 ## Technologies
 
 - **FastAPI**: Modern async web framework
 - **Pydantic**: Data validation
+- **LangChain**: Document loading and text splitting
+- **PyMuPDF**: PDF file processing
 - **aiofiles**: Async file operations
 - **Uvicorn**: ASGI server
 - **Python 3.x**: Language
@@ -72,6 +90,10 @@ aiofiles==25.1.0
 python-dotenv==1.2.2
 python-multipart==0.0.22
 uvicorn==0.41.0
+langchain==1.2.16
+langchain-community==0.4.1
+langchain-text-splitters==1.1.2
+PyMuPDF==1.27.2.3
 ```
 
 See `requirements.txt` for complete list.
@@ -98,6 +120,64 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 3. Install dependencies
 ```bash
 pip install -r requirements.txt
+```
+
+## API Endpoints
+
+### Welcome Endpoint
+- **GET** `/api/v1/`
+  - Returns application name and version
+
+### File Upload
+- **POST** `/api/v1/data/upload/{project_id}`
+  - **Request**: Multipart form data with file
+  - **Response**: File ID for uploaded file
+  - **Supported formats**: PDF, TXT (configurable)
+  
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully.",
+  "file_id": "random_key_filename.pdf"
+}
+```
+
+### File Processing
+- **POST** `/api/v1/data/process/{project_id}`
+  - **Request Body**:
+    ```json
+    {
+      "file_id": "string",
+      "chunk_size": 100,
+      "overlap_size": 20,
+      "reset": false
+    }
+    ```
+  - **Response**: Processed file chunks with metadata
+    ```json
+    {
+      "success": true,
+      "message": "File processed successfully.",
+      "file_chunks": [
+        {
+          "page_content": "text content...",
+          "metadata": {"source": "file.pdf", "page": 0}
+        }
+      ]
+    }
+    ```
+
+## Running the Application
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The API will be available at `http://localhost:8000`
+API documentation (Swagger UI): `http://localhost:8000/docs`
+Alternative docs (ReDoc): `http://localhost:8000/redoc`
+
+
 ```
 
 4. Create `.env` file in `app/` directory with your configuration:
@@ -161,5 +241,5 @@ Each filename is prefixed with a random key to ensure uniqueness.
 - Filename sanitization to prevent security issues
 
 
-**Last Updated**: 2026-04-30  
+**Last Updated**: 2026-05-04  
 **Status**: In Progress - Implementation Paused

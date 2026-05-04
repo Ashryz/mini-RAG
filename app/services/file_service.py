@@ -6,7 +6,7 @@ from app.utils.file_utils import generate_random_string
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-class FileData:
+class FileService:
 
     def __init__(self):
         self.app_settings = get_settings()
@@ -39,6 +39,9 @@ class FileData:
         filename = re.sub(r'_{2,}', '_', filename)
         return filename
 
+    def get_file_extention(self, filename: str) -> str:
+        ext = Path(filename).suffix.lstrip(".")
+        return ext
 
     def generate_unique_filename(self,filename: str , project_id: str) -> str:
         random_key = generate_random_string()
