@@ -209,3 +209,4 @@ __marimo__/
 # Ignore uploaded files
 app/assets/files/**
 !app/assets/files/.gitkeep
+docker/mongodb

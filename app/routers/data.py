@@ -1,9 +1,10 @@
 import aiofiles
-from fastapi import APIRouter , Depends, UploadFile , status
+from fastapi import APIRouter , Depends, UploadFile , status, Request
 from fastapi.responses import JSONResponse
 from app.core.config import Settings, get_settings
 from app.schemas import  ProcessRequest
-from app.services import FileService , ProcessService
+from app.schemas import DataChunk
+from app.services import FileService , ProcessService , ProjectService, ChunkService
 import logging
 
 logger = logging.getLogger("uvicorn.error")
@@ -14,9 +15,13 @@ router = APIRouter(
 )
 
 @router.post("/upload/{project_id}")
-async def upload_file(project_id: str, file: UploadFile, app_settings: Settings = Depends(get_settings)):
+async def upload_file(request: Request, project_id: str, file: UploadFile, app_settings: Settings = Depends(get_settings)):
     
     is_valid = FileService().validate_file(file=file)
+
+    project_service = ProjectService(db=request.app.database)
+
+    project = await project_service.get_project_or_create(project_id=project_id)
 
     if not is_valid['success']:
         return JSONResponse(
@@ -52,14 +57,19 @@ async def upload_file(project_id: str, file: UploadFile, app_settings: Settings 
         content={
             "success": True,
             "message": "File uploaded successfully.",
-            "file_id": new_filename
+            "file_id": new_filename,
+            "project_id": str(project._id)
         }
     )
 
 @router.post("/process/{project_id}")
-async def process_file(project_id: str, process_request: ProcessRequest):
+async def process_file(request: Request,project_id: str, process_request: ProcessRequest):
     process_service = ProcessService(project_id=project_id)
     file_content = process_service.get_file_content(file_id=process_request.file_id)
+
+    project_service = ProjectService(db=request.app.database)
+
+    project = await project_service.get_project_or_create(project_id=project_id)
 
     if file_content is None:
         return JSONResponse(
@@ -76,11 +86,26 @@ async def process_file(project_id: str, process_request: ProcessRequest):
         chunk_size=process_request.chunk_size, 
         chunk_overlap=process_request.overlap_size
     )
+
+    data_chunks = [DataChunk(
+        chunk_text=chunk.page_content, 
+        chunk_metadata=chunk.metadata, 
+        chunk_order=i + 1, 
+        chunk_project_id=project.id
+    ) for i, chunk in enumerate(file_chunks)]
+
+    chunk_service = ChunkService(db=request.app.database)
+
+    if process_request.reset:
+        await chunk_service.delete_chunks_by_project_id(project_id=project.id)
+        
+    result = await chunk_service.insert_many_chunks(chunks=data_chunks)
+
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             "success": True,
             "message": "File processed successfully.",
-            "file_chunks": [{ "page_content": chunk.page_content, "metadata": chunk.metadata } for chunk in file_chunks]
+            "inserted_chunks": result
         }
     )
