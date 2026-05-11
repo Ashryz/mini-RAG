@@ -4,9 +4,9 @@ A FastAPI-based application for managing file uploads, processing, and retrieval
 
 ## Current Status
 
-🚀 **Active Development** - Building database integration and project management features
+🚀 **Active Development** - Database indexing and optimization features added
 
-**Last Updated**: May 5, 2026 - MongoDB integration with project and data chunk management added
+**Last Updated**: May 11, 2026 - MongoDB automatic indexing and bulk operations implemented
 
 ## Project Structure
 
@@ -24,13 +24,14 @@ Mini-Rag/
 │   ├── schemas/
 │   │   ├── __init__.py
 │   │   ├── proccess.py      # File processing request/response schemas
-│   │   ├── project.py       # Project schema with MongoDB integration
-│   │   └── data_chunk.py    # Data chunk schema for storing processed chunks
+│   │   ├── project.py       # Project schema with indexing configuration
+│   │   └── data_chunk.py    # Data chunk schema with indexing configuration
 │   ├── services/
 │   │   ├── __init__.py
 │   │   ├── file_service.py  # File management and validation service
 │   │   ├── proccess_service.py # Document processing and chunking service
-│   │   └── project_service.py  # Project CRUD operations with MongoDB
+│   │   ├── project_service.py  # Project CRUD operations with automatic indexing
+│   │   └── chunk_service.py   # Chunk operations with bulk writes and indexing
 │   ├── utils/
 │   │   └── file_utils.py    # Utility functions
 │   └── assets/
@@ -65,6 +66,20 @@ Mini-Rag/
   - Chunk metadata preservation
   - Project association and referencing
   - Chunk ordering within projects
+  - Bulk write operations for efficient batch inserts
+  - Automatic index creation on collection initialization
+
+- **Database Indexing**:
+  - Automatic index creation on service initialization
+  - Unique index on project_id for fast lookups and uniqueness
+  - Foreign key index on chunk_project_id for efficient project queries
+  - Indexing configuration defined in schema classes
+  - Collection initialization with index creation on startup
+
+- **Bulk Operations**:
+  - Batch insert chunks with configurable batch size
+  - Bulk write operations using InsertOne for efficiency
+  - Delete chunks by project ID in bulk operations
 
 - **Base Welcome Endpoint**: GET `/api/v1/`
   - Returns app name and version
@@ -194,11 +209,45 @@ docker-compose up -d
       "reset": false
     }
     ```
-  - **Response**: Processed file chunks with metadata
-    ```json
-    {
-      "success": true,
-      "message": "File processed successfully.",
+  -Database Indexing Strategy
+
+The application implements automatic index creation for optimal query performance:
+
+### Project Collection
+- **Unique Index on project_id**: Ensures each project has a unique identifier
+  - Prevents duplicate projects
+  - Accelerates project lookups
+
+### Chunk Collection
+- **Index on chunk_project_id**: Enables efficient queries filtering chunks by project
+  - Speeds up retrieval of all chunks for a specific project
+  - Supports bulk operations on chunks
+
+### Index Creation
+- Indexes are automatically created when collections are initialized
+1. Ensure MongoDB is running (see Setup section)
+
+2. Start the FastAPI application
+```bash
+uvicorn app.main:app --reload
+```
+
+3. Indexes will be created automatically on first startupon-blocking async index creation
+
+## Services Architecture
+
+### ProjectService
+- Async initialization with automatic index creation
+- CRUD operations for project management
+- Paginated project listing
+- Automatic collection creation on first use
+
+### ChunkService  
+- Async initialization with automatic index creation
+- Bulk write operations for efficient batch processing
+- Chunk retrieval by ID
+- Delete chunks by project ID
+- Metadata support in chunks   "message": "File processed successfully.",
       "file_chunks": [
         {
           "page_content": "text content...",
