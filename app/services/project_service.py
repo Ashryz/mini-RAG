@@ -7,6 +7,20 @@ class ProjectService:
 
     def __init__(self, db):
         self.collection = db["projects"]
+    
+    @classmethod  
+    async def initialize(cls, db):
+        instance = cls(db)
+        await instance.init_collection(db)
+        return instance
+    
+    async def init_collection(self, db):
+        collections = await db.list_collection_names()
+        if "projects" not in collections:
+            self.collection = db["projects"]
+            indexes =  Project.get_indexes()
+            for index in indexes:
+                await self.collection.create_index(index["key"], name=index["name"], unique=index.get("unique", False))
 
     async def create_project(self, project: Project):
         result = await self.collection.insert_one(project.model_dump(by_alias=True, exclude_none=True))

@@ -8,6 +8,20 @@ class ChunkService:
     def __init__(self, db):
         self.collection = db["chunks"]
 
+    @classmethod 
+    async def initialize(cls, db):
+        instance = cls(db)
+        await instance.init_collection(db)
+        return instance
+    
+    async def init_collection(self, db):
+        collections = await db.list_collection_names()
+        if "chunks" not in collections:
+            self.collection = db["chunks"]
+            indexes = DataChunk.get_indexes()
+            for index in indexes:
+                await self.collection.create_index(index["key"], name=index["name"], unique=index.get("unique", False))
+                
     async def create_chunk(self, chunk: DataChunk):
         result = await self.collection.insert_one(chunk.model_dump(by_alias=True, exclude_none=True))
         chunk._id = result.inserted_id

@@ -19,7 +19,7 @@ async def upload_file(request: Request, project_id: str, file: UploadFile, app_s
     
     is_valid = FileService().validate_file(file=file)
 
-    project_service = ProjectService(db=request.app.database)
+    project_service = await ProjectService.initialize(db=request.app.database)
 
     project = await project_service.get_project_or_create(project_id=project_id)
 
@@ -67,7 +67,7 @@ async def process_file(request: Request,project_id: str, process_request: Proces
     process_service = ProcessService(project_id=project_id)
     file_content = process_service.get_file_content(file_id=process_request.file_id)
 
-    project_service = ProjectService(db=request.app.database)
+    project_service = await ProjectService.initialize(db=request.app.database)
 
     project = await project_service.get_project_or_create(project_id=project_id)
 
@@ -94,7 +94,7 @@ async def process_file(request: Request,project_id: str, process_request: Proces
         chunk_project_id=project.id
     ) for i, chunk in enumerate(file_chunks)]
 
-    chunk_service = ChunkService(db=request.app.database)
+    chunk_service = await ChunkService.initialize(db=request.app.database)
 
     if process_request.reset:
         await chunk_service.delete_chunks_by_project_id(project_id=project.id)

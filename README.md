@@ -141,16 +141,9 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 3. Create `.env` file with configuration
 ```bash
-cat > app/.env << EOF
-APP_NAME=Mini RAG
-APP_VERSION=0.1.0
-FILE_ALLOWED_EXTENSIONS=["application/pdf", "text/plain"]
-FILE_MAX_SIZE=10485760
-FILE_CHUNK_SIZE=8192
-MONGODB_URL=mongodb://localhost:27017
-MONGODB_DB_NAME=mini_rag
-EOF
+cat .env.example > .env
 ```
+- set your environment variables in `.env` file
 
 4. Install dependencies
 ```bash
@@ -160,11 +153,15 @@ pip install -r requirements.txt
 5. Ensure MongoDB is running
 ```bash
 # If using Docker
-docker run -d -p 27017:27017 --name mongodb mongo:latest
-
-# Or if MongoDB is installed locally
-mongod
+cd docker
+cat .env.example > .env
 ```
+- update you `.env` with your credentials
+```bash
+docker-compose up -d
+```
+
+
 
 ## API Endpoints
 
