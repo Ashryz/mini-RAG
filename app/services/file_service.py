@@ -1,17 +1,43 @@
+from bson import ObjectId
 from fastapi import UploadFile
 from app.core.config import get_settings
 from pathlib import Path
 import re
+from app.schemas import File
 from app.utils.file_utils import generate_random_string
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 class FileService:
 
-    def __init__(self):
+    def __init__(self, db):
         self.app_settings = get_settings()
         self.files_dir = BASE_DIR / "assets" / "files"
         self.files_dir.mkdir(parents=True, exist_ok=True)
+        self.collection = db["files"]
+
+    @classmethod  
+    async def initialize(cls, db):
+        instance = cls(db)
+        await instance.init_collection(db)
+        return instance
+    
+    async def init_collection(self, db):
+        collections = await db.list_collection_names()
+        if "files" not in collections:
+            self.collection = db["files"]
+            indexes =  File.get_indexes()
+            for index in indexes:
+                await self.collection.create_index(index["key"], name=index["name"], unique=index.get("unique", False))
+
+    async def create_file(self, file: File):
+        record = await self.collection.insert_one(file.model_dump(by_alias=True, exclude_none=True))
+        file.id = record.inserted_id
+        return file
+
+    async def get_all_project_files (self, file_project_id: str):
+        return await self.collection.find({"file_project_id": ObjectId(file_project_id)}).to_list(length=None)
+
 
     def validate_file(self, file: UploadFile):
         if file.content_type not in self.app_settings.FILE_ALLOWED_EXTENSIONS:

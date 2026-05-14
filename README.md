@@ -4,9 +4,9 @@ A FastAPI-based application for managing file uploads, processing, and retrieval
 
 ## Current Status
 
-🚀 **Active Development** - Database indexing and optimization features added
+🚀 **Active Development** - File tracking and metadata management system added
 
-**Last Updated**: May 11, 2026 - MongoDB automatic indexing and bulk operations implemented
+**Last Updated**: May 14, 2026 - File metadata storage in MongoDB with indexing implemented
 
 ## Project Structure
 
@@ -25,10 +25,11 @@ Mini-Rag/
 │   │   ├── __init__.py
 │   │   ├── proccess.py      # File processing request/response schemas
 │   │   ├── project.py       # Project schema with indexing configuration
-│   │   └── data_chunk.py    # Data chunk schema with indexing configuration
+│   │   ├── data_chunk.py    # Data chunk schema with indexing configuration
+│   │   └── file.py          # File metadata schema for file tracking
 │   ├── services/
 │   │   ├── __init__.py
-│   │   ├── file_service.py  # File management and validation service
+│   │   ├── file_service.py  # File management and metadata storage in MongoDB
 │   │   ├── proccess_service.py # Document processing and chunking service
 │   │   ├── project_service.py  # Project CRUD operations with automatic indexing
 │   │   └── chunk_service.py   # Chunk operations with bulk writes and indexing
@@ -46,7 +47,16 @@ Mini-Rag/
 - **File Upload Endpoint**: POST `/api/v1/data/upload/{project_id}`
   - Validates file type and size
   - Generates unique filenames with random keys
-  - Stores files in project-specific directories
+  - Stores file metadata in MongoDB (name, type, size, upload timestamp)
+  - Returns file_id and project_id in response
+  - Async file writing support
+
+- **File Metadata Storage**:
+  - Tracks all uploaded files with metadata (file_name, file_type, file_size, create_at)
+  - Unique constraint on (file_name, project_id) to prevent duplicate filenames
+  - Index on file_project_id for efficient file retrieval per project
+  - Timestamps for audit trail
+  - File association with projectsecific directories
   - Async file writing support
 
 - **File Processing Endpoint**: POST `/api/v1/data/process/{project_id}`
@@ -69,9 +79,17 @@ Mini-Rag/
   - Bulk write operations for efficient batch inserts
   - Automatic index creation on collection initialization
 
+- **File Metadata Storage**:
+  - Tracks all uploaded files with metadata (file_name, file_type, file_size, create_at)
+  - Unique constraint on (file_name, project_id) to prevent duplicate filenames
+  - Index on file_project_id for efficient file retrieval per project
+  - Timestamps for audit trail
+  - File association with projects
+
 - **Database Indexing**:
   - Automatic index creation on service initialization
   - Unique index on project_id for fast lookups and uniqueness
+  - Compound unique index on (file_name, file_project_id) for file uniqueness
   - Foreign key index on chunk_project_id for efficient project queries
   - Indexing configuration defined in schema classes
   - Collection initialization with index creation on startup
@@ -187,14 +205,15 @@ docker-compose up -d
 ### File Upload
 - **POST** `/api/v1/data/upload/{project_id}`
   - **Request**: Multipart form data with file
-  - **Response**: File ID for uploaded file
+  - **Response**: File ID, Project ID, and upload status
   - **Supported formats**: PDF, TXT (configurable)
   
 ```json
 {
   "success": true,
   "message": "File uploaded successfully.",
-  "file_id": "random_key_filename.pdf"
+  "file_id": "507f1f77bcf86cd799439011",
+  "project_id": "507f1f77bcf86cd799439012"
 }
 ```
 
@@ -209,7 +228,7 @@ docker-compose up -d
       "reset": false
     }
     ```
-  -Database Indexing Strategy
+## Database Indexing Strategy
 
 The application implements automatic index creation for optimal query performance:
 
@@ -218,6 +237,14 @@ The application implements automatic index creation for optimal query performanc
   - Prevents duplicate projects
   - Accelerates project lookups
 
+### File Collection
+- **Index on file_project_id**: Enables efficient queries filtering files by project
+  - Speeds up retrieval of all files for a specific project
+  - Foreign key relationship support
+- **Compound Unique Index on (file_name, file_project_id)**: Ensures unique filenames within a project
+  - Prevents duplicate file names in same project
+  - Accelerates file lookups by name
+
 ### Chunk Collection
 - **Index on chunk_project_id**: Enables efficient queries filtering chunks by project
   - Speeds up retrieval of all chunks for a specific project
@@ -225,16 +252,19 @@ The application implements automatic index creation for optimal query performanc
 
 ### Index Creation
 - Indexes are automatically created when collections are initialized
-1. Ensure MongoDB is running (see Setup section)
-
-2. Start the FastAPI application
-```bash
-uvicorn app.main:app --reload
-```
-
-3. Indexes will be created automatically on first startupon-blocking async index creation
+- Schema classes define index configuration via `get_indexes()` method
+- Services call `initialize()` during app startup to ensure indexes exist
+- Non-blocking async index creation
 
 ## Services Architecture
+
+### FileService
+- Async initialization with automatic index creation on files collection
+- CRUD operations for file metadata management
+- File validation (type and size checks)
+- File metadata storage with timestamps
+- Efficient file retrieval by project ID
+- Automatic collection creation on first use
 
 ### ProjectService
 - Async initialization with automatic index creation
@@ -247,7 +277,45 @@ uvicorn app.main:app --reload
 - Bulk write operations for efficient batch processing
 - Chunk retrieval by ID
 - Delete chunks by project ID
-- Metadata support in chunks   "message": "File processed successfully.",
+- Metadata support in chunks
+
+## API Endpoints
+
+### Welcome Endpoint
+- **GET** `/api/v1/`
+  - Returns application name and version
+
+### File Upload
+- **POST** `/api/v1/data/upload/{project_id}`
+  - **Request**: Multipart form data with file
+  - **Response**: File ID, Project ID, and upload status
+  - **Supported formats**: PDF, TXT (configurable)
+  
+```json
+{
+  "success": true,
+  "message": "File uploaded successfully.",
+  "file_id": "507f1f77bcf86cd799439011",
+  "project_id": "507f1f77bcf86cd799439012"
+}
+```
+
+### File Processing
+- **POST** `/api/v1/data/process/{project_id}`
+  - **Request Body**:
+    ```json
+    {
+      "file_id": "string",
+      "chunk_size": 100,
+      "overlap_size": 20,
+      "reset": false
+    }
+    ```
+  - **Response**: Processed file chunks with metadata
+    ```json
+    {
+      "success": true,
+      "message": "File processed successfully.",
       "file_chunks": [
         {
           "page_content": "text content...",

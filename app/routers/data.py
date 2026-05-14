@@ -1,9 +1,12 @@
+import os
+
 import aiofiles
 from fastapi import APIRouter , Depends, UploadFile , status, Request
 from fastapi.responses import JSONResponse
 from app.core.config import Settings, get_settings
 from app.schemas import  ProcessRequest
 from app.schemas import DataChunk
+from app.schemas import File
 from app.services import FileService , ProcessService , ProjectService, ChunkService
 import logging
 
@@ -16,8 +19,9 @@ router = APIRouter(
 
 @router.post("/upload/{project_id}")
 async def upload_file(request: Request, project_id: str, file: UploadFile, app_settings: Settings = Depends(get_settings)):
-    
-    is_valid = FileService().validate_file(file=file)
+    file_service = await FileService.initialize(db=request.app.database)
+
+    is_valid = file_service.validate_file(file=file)
 
     project_service = await ProjectService.initialize(db=request.app.database)
 
@@ -32,8 +36,8 @@ async def upload_file(request: Request, project_id: str, file: UploadFile, app_s
             }
         )
     
-    project_path = FileService().get_project_path(project_id=project_id)
-    new_filename = FileService().generate_unique_filename(filename=file.filename, project_id=project_id)
+    project_path = file_service.get_project_path(project_id=project_id)
+    new_filename = file_service.generate_unique_filename(filename=file.filename, project_id=project_id)
     file_path = project_path / new_filename
 
     try:
@@ -50,15 +54,20 @@ async def upload_file(request: Request, project_id: str, file: UploadFile, app_s
                 "message": "An error occurred while uploading the file."
             }
         )
-
-
+    new_file = await file_service.create_file(file=File(
+        file_project_id=project.id,
+        file_name=new_filename,
+        file_type=file_service.get_file_extention(filename=new_filename),
+        file_size=os.path.getsize(file_path),
+    ))
+    
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
             "success": True,
             "message": "File uploaded successfully.",
-            "file_id": new_filename,
-            "project_id": str(project._id)
+            "file_id": str(new_file.id),
+            "project_id": str(project.id)
         }
     )
 
